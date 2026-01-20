@@ -6,7 +6,10 @@ import com.google.gson.stream.JsonWriter
 import eu.kanade.tachiyomi.source.model.Page
 
 class PageAdapter : TypeAdapter<Page>() {
-    override fun write(writer: JsonWriter?, value: Page?) {
+    override fun write(
+        writer: JsonWriter?,
+        value: Page?,
+    ) {
         writer!!
 
         if (value == null) {
@@ -48,5 +51,4 @@ class PageAdapter : TypeAdapter<Page>() {
             imageUrl = imageUrl,
         )
     }
-
 }

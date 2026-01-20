@@ -69,7 +69,7 @@ object GetCatalogueSource {
         val jarPath = "${applicationDirs.extensionsRoot}/$jarName"
 
         val apkSavePath = "${applicationDirs.extensionsRoot}/$apkName"
-        val packageInfo = PackageTools.getPackageInfo(apkSavePath);
+        val packageInfo = PackageTools.getPackageInfo(apkSavePath)
         val className =
             packageInfo.packageName + packageInfo.applicationInfo.metaData.getString(METADATA_SOURCE_CLASS)
 

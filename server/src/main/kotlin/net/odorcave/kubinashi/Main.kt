@@ -14,16 +14,22 @@ import eu.kanade.tachiyomi.util.chapter.ChapterRecognition
 import eu.kanade.tachiyomi.util.chapter.ChapterSanitizer
 import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.http.*
-import io.ktor.serialization.gson.*
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.plugins.calllogging.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.gson.gson
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.request.ContentTransformationException
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
 import net.odorcave.kubinashi.gson.PageAdapter
 import net.odorcave.kubinashi.model.Chapter
@@ -37,22 +43,31 @@ import uy.kohesive.injekt.injectLazy
 import java.io.Serializable
 
 @Immutable
-data class SourceManga(val source: Long, val manga: SMangaImpl) : Serializable;
+data class SourceManga(
+    val source: Long,
+    val manga: SMangaImpl,
+) : Serializable
 
 @Immutable
-data class SourceChapter(val source: Long, val chapter: SChapterImpl) : Serializable;
+data class SourceChapter(
+    val source: Long,
+    val chapter: SChapterImpl,
+) : Serializable
 
 @Immutable
-data class SourcePage(val source: Long, val page: Page) : Serializable;
+data class SourcePage(
+    val source: Long,
+    val page: Page,
+) : Serializable
 
 @Immutable
-data class NeededExtension(val apk: String) : Serializable
+data class NeededExtension(
+    val apk: String,
+) : Serializable
 typealias NeededExtensionList = Array<NeededExtension>
 
 fun Application.routing(logger: KLogger) {
-
     routing {
-
         post("/extensions/sync") {
             val extensionsToInstall = call.receive<NeededExtensionList>()
 
@@ -79,21 +94,22 @@ fun Application.routing(logger: KLogger) {
                     return@get
                 }
 
-                logger.warn{"getting source"}
+                logger.warn { "getting source" }
                 val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
                 if (source == null) {
-                    logger.warn{"CatalogueSource not found for $sourceId"}
+                    logger.warn { "CatalogueSource not found for $sourceId" }
                     call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
                     return@get
                 }
 
-                logger.warn{"calling source: ${source.name}"}
+                logger.warn { "calling source: ${source.name}" }
                 try {
                     val page = source.getSearchManga(1, query, source.getFilterList())
-                    val titles = page.mangas
-                        .distinctBy { it.url }
+                    val titles =
+                        page.mangas
+                            .distinctBy { it.url }
 
-                    logger.warn{ "got ${page.mangas.size} mangas" }
+                    logger.warn { "got ${page.mangas.size} mangas" }
 
                     call.respond(titles)
                 } catch (e: Exception) {
@@ -107,8 +123,7 @@ fun Application.routing(logger: KLogger) {
         }
 
         get("/manga/details") {
-
-            val mangaToFetch: SourceManga;
+            val mangaToFetch: SourceManga
             try {
                 mangaToFetch = call.receive<SourceManga>()
             } catch (e: ContentTransformationException) {
@@ -132,7 +147,7 @@ fun Application.routing(logger: KLogger) {
         get("/manga/chapters") {
             val mangaToFetch = call.receive<SourceManga>()
             val sourceId = mangaToFetch.source
-            val manga = mangaToFetch.manga;
+            val manga = mangaToFetch.manga
 
             val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
             if (source == null) {
@@ -140,23 +155,35 @@ fun Application.routing(logger: KLogger) {
                 return@get
             }
 
-            val sourceChapters = source.getChapterList(manga).mapIndexed { i, sChapter ->
-                Chapter.create()
-                    .copyFromSChapter(sChapter)
-                    .copy(name = with(ChapterSanitizer) {sChapter.name.sanitize(manga.title)})
-                    .copy(source_order = i.toLong())
-            }.map {
-                var chapter = it
-                if (source is HttpSource) {
-                    val sChapter = chapter.toSChapter()
-                    source.prepareNewChapter(sChapter, manga)
-                    chapter = chapter.copyFromSChapter(sChapter)
-                }
+            val sourceChapters =
+                source
+                    .getChapterList(manga)
+                    .mapIndexed { i, sChapter ->
+                        Chapter
+                            .create()
+                            .copyFromSChapter(sChapter)
+                            .copy(name = with(ChapterSanitizer) { sChapter.name.sanitize(manga.title) })
+                            .copy(source_order = i.toLong())
+                    }.map {
+                        var chapter = it
+                        if (source is HttpSource) {
+                            val sChapter = chapter.toSChapter()
+                            source.prepareNewChapter(sChapter, manga)
+                            chapter = chapter.copyFromSChapter(sChapter)
+                        }
 
-                chapter = chapter.copy(chapter_number = ChapterRecognition.parseChapterNumber(manga.title, chapter.name, chapter.chapter_number))
+                        chapter =
+                            chapter.copy(
+                                chapter_number =
+                                    ChapterRecognition.parseChapterNumber(
+                                        manga.title,
+                                        chapter.name,
+                                        chapter.chapter_number,
+                                    ),
+                            )
 
-                return@map chapter
-            }
+                        return@map chapter
+                    }
 
             call.respond(sourceChapters)
         }
@@ -206,7 +233,7 @@ fun Application.routing(logger: KLogger) {
 }
 
 suspend fun installExtensionApk(apkName: String) {
-    val applicationDirs: ApplicationDirs by injectLazy();
+    val applicationDirs: ApplicationDirs by injectLazy()
 
     val apkURL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/apk/$apkName"
     val apkSavePath = "${applicationDirs.extensionsRoot}/$apkName"
@@ -227,15 +254,19 @@ fun main() {
     applicationSetup()
     var logger = KotlinLogging.logger {}
 
-    val network: NetworkHelper by injectLazy();
+    val network: NetworkHelper by injectLazy()
 
-    val LARAVEL_HOST = System.getenv("LARAVEL_HOST") ?: "http://localhost:8000"
+    val laravelHost = System.getenv("LARAVEL_HOST") ?: "http://localhost:8000"
 
     logger.warn { "Installing extensions" }
     runBlocking {
-        val response = network.client.newCall(
-            GET("${LARAVEL_HOST}/extensions/needed")
-        ).execute().body.string()
+        val response =
+            network.client
+                .newCall(
+                    GET("$laravelHost/extensions/needed"),
+                ).execute()
+                .body
+                .string()
 
         val neededExtensions = Gson().fromJson(response, NeededExtensionList::class.java)
 
@@ -243,31 +274,30 @@ fun main() {
             logger.warn { "Installing $apkName" }
 
             try {
-                installExtensionApk(apkName);
+                installExtensionApk(apkName)
             } catch (e: Exception) {
                 logger.error(e) { "Error installing $apkName" }
             }
         }
     }
 
-    val server = embeddedServer(Netty, port = 8081) {
-        install(ContentNegotiation) {
-            gson {
-                // Needs to be parsed to string because JSON can't handle all Long values and truncates some
-                // e.g: in memory 2499283573021220255 => 2499283573021220400 in JSON
-                setLongSerializationPolicy(LongSerializationPolicy.STRING)
+    val server =
+        embeddedServer(Netty, port = 8081) {
+            install(ContentNegotiation) {
+                gson {
+                    // Needs to be parsed to string because JSON can't handle all Long values and truncates some
+                    // e.g: in memory 2499283573021220255 => 2499283573021220400 in JSON
+                    setLongSerializationPolicy(LongSerializationPolicy.STRING)
 
-                registerTypeAdapter(Page::class.java, PageAdapter())
+                    registerTypeAdapter(Page::class.java, PageAdapter())
+                }
             }
-        }
-        install(CallLogging) {
-            level = Level.INFO
-        }
+            install(CallLogging) {
+                level = Level.INFO
+            }
 
-        routing(logger)
-    }
+            routing(logger)
+        }
 
     server.start(wait = false)
-
-
 }
