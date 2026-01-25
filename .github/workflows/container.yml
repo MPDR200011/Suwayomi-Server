@@ -69,7 +69,7 @@ jobs:
             chmod -R 777 ${{ runner.temp }}/tachidesk
             docker run -d -p 127.0.0.1:4568:8081 -v ${{ runner.temp }}/tachidesk:/home/suwayomi/.local/share/Tachidesk --name=suwayomi_test ${{ env.test_image_tag }}
             sleep 15
-            curl -s 127.0.0.1:4568/status && val_env_vars=$(curl -s 127.0.0.1:4568/status | grep -o "OK" | sort --unique)
+            curl -s 127.0.0.1:4568/status && val=$(curl -s 127.0.0.1:4568/status | grep -o "OK" | sort --unique)
             docker stop suwayomi_test
             docker logs suwayomi_test > ${{ runner.temp }}/tachidesk.log
             docker rm suwayomi_test
