@@ -563,6 +563,4 @@ fun applicationSetup() {
             logger.debug { "KCEF shutdown complete" }
         },
     )
-
-    logger.info { "Application setup finished" }
 }

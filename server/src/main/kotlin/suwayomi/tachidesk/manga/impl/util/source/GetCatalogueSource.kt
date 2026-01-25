@@ -14,11 +14,6 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import suwayomi.tachidesk.i18n.MR
-import suwayomi.tachidesk.manga.impl.extension.Extension
-import suwayomi.tachidesk.manga.impl.util.PackageTools
-import suwayomi.tachidesk.manga.impl.util.PackageTools.METADATA_SOURCE_CLASS
-import suwayomi.tachidesk.manga.impl.util.PackageTools.dex2jar
 import suwayomi.tachidesk.manga.impl.util.PackageTools.loadExtensionSources
 import suwayomi.tachidesk.manga.model.table.ExtensionTable
 import suwayomi.tachidesk.manga.model.table.SourceTable
