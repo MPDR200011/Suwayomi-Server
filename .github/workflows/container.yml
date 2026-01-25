@@ -73,12 +73,12 @@ jobs:
             docker stop suwayomi_test
             docker logs suwayomi_test > ${{ runner.temp }}/tachidesk.log
             docker rm suwayomi_test
-            if [[ $val != "Suwayomi-Server" ]]; then
+            if [[ $val != "OK" ]]; then
               echo "Container logs:"
               echo "=============================="
               cat ${{ runner.temp }}/tachidesk.log
               echo "=============================="
-              echo "Did not find Suwayomi-Server in server response: ${val}"
+              echo "Did not find OK in server response: ${val}"
               exit 1
             fi
 
@@ -165,12 +165,12 @@ jobs:
           docker stop suwayomi_test
           docker logs suwayomi_test > ${{ runner.temp }}/tachidesk_env_vars.log
           docker rm suwayomi_test
-          if [[ $val_env_vars != "Suwayomi-Server" ]]; then
+          if [[ $val_env_vars != "OK" ]]; then
             echo "Container logs:"
             echo "=============================="
             cat ${{ runner.temp }}/tachidesk_env_vars.log
             echo "=============================="
-            echo "Did not find Suwayomi-Server in server response: ${val_env_vars}"
+            echo "Did not find OK in server response: ${val_env_vars}"
             exit 1
           fi
 
