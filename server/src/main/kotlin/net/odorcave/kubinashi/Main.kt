@@ -244,13 +244,19 @@ fun main() {
 
     logger.warn { "Installing extensions" }
     runBlocking {
-        val response =
-            network.client
-                .newCall(
-                    GET("$laravelHost/extensions/needed"),
-                ).execute()
-                .body
-                .string()
+        val response: String
+        try {
+            response =
+                network.client
+                    .newCall(
+                        GET("$laravelHost/extensions/needed"),
+                    ).execute()
+                    .body
+                    .string()
+        } catch (e: Exception) {
+            logger.error(e) { "Error fetching startup extensions" }
+            return@runBlocking
+        }
 
         val neededExtensions = Gson().fromJson(response, NeededExtensionList::class.java)
 
