@@ -161,7 +161,7 @@ jobs:
             --name=suwayomi_test \
             ${{ env.test_image_tag }}
           sleep 15
-          curl -s http://manga:hello123@127.0.0.1:4568/status/ && val_env_vars=$(curl -s http://manga:hello123@127.0.0.1:4568/status/ | grep -o "OK" | sort --unique)
+          curl -s http://manga:hello123@127.0.0.1:4568/status && val_env_vars=$(curl -s http://manga:hello123@127.0.0.1:4568/status | grep -o "OK" | sort --unique)
           docker stop suwayomi_test
           docker logs suwayomi_test > ${{ runner.temp }}/tachidesk_env_vars.log
           docker rm suwayomi_test
