@@ -66,6 +66,10 @@ typealias NeededExtensionList = Array<NeededExtension>
 
 fun Application.routing(logger: KLogger) {
     routing {
+        get("/status") {
+            call.respond("OK")
+        }
+
         post("/extensions/sync") {
             val extensionsToInstall = call.receive<NeededExtensionList>()
 
