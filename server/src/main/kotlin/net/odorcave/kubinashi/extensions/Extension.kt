@@ -6,8 +6,6 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
 import eu.kanade.tachiyomi.source.online.HttpSource
 import io.github.oshai.kotlinlogging.KotlinLogging
-import net.odorcave.kubinashi.extensions.SourceManager.logger
-import net.odorcave.kubinashi.extensions.SourceManager.sourceCache
 import okhttp3.CacheControl
 import okio.buffer
 import okio.sink
@@ -24,7 +22,6 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-import kotlin.collections.set
 import kotlin.getValue
 
 object Extension {
@@ -32,7 +29,7 @@ object Extension {
     private val applicationDirs: ApplicationDirs by injectLazy()
     private val logger = KotlinLogging.logger {}
 
-    public suspend fun installApk(apkName: String) {
+    suspend fun installApk(apkName: String) {
         val apkURL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/apk/$apkName"
         val apkSavePath = "${applicationDirs.extensionsRoot}/$apkName"
 
@@ -43,14 +40,11 @@ object Extension {
         val fileNameWithoutType = apkName.substringBefore(".apk")
 
         dex2jar(apkSavePath, jarPath, fileNameWithoutType)
-
-        extractAssetsFromApk(apkURL, jarPath)
+        extractAssetsFromApk(apkSavePath, jarPath)
 
         val packageInfo = PackageTools.getPackageInfo(apkSavePath)
         val className =
             packageInfo.packageName + packageInfo.applicationInfo.metaData.getString(METADATA_SOURCE_CLASS)
-
-        Extension.extractAssetsFromApk(apkSavePath, jarPath)
 
         when (val instance = loadExtensionSources(jarPath, className)) {
             is Source -> listOf(instance)

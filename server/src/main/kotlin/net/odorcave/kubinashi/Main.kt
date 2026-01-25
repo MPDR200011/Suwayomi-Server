@@ -32,14 +32,10 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
 import net.odorcave.kubinashi.extensions.Extension
-import net.odorcave.kubinashi.extensions.Extension.downloadAPKFile
 import net.odorcave.kubinashi.extensions.SourceManager
 import net.odorcave.kubinashi.gson.PageAdapter
 import net.odorcave.kubinashi.model.Chapter
 import org.slf4j.event.Level
-import suwayomi.tachidesk.manga.impl.util.PackageTools.dex2jar
-import suwayomi.tachidesk.manga.impl.util.source.GetCatalogueSource
-import suwayomi.tachidesk.server.ApplicationDirs
 import suwayomi.tachidesk.server.applicationSetup
 import uy.kohesive.injekt.injectLazy
 import java.io.Serializable
@@ -97,7 +93,7 @@ fun Application.routing(logger: KLogger) {
                 }
 
                 logger.warn { "getting source" }
-                val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
+                val source = SourceManager.getCatalogueSourceOrNull(sourceId)
                 if (source == null) {
                     logger.warn { "CatalogueSource not found for $sourceId" }
                     call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
@@ -135,7 +131,7 @@ fun Application.routing(logger: KLogger) {
             }
             val sourceId = mangaToFetch.source
 
-            val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
+            val source = SourceManager.getCatalogueSourceOrNull(sourceId)
             if (source == null) {
                 call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
                 return@get
@@ -151,7 +147,7 @@ fun Application.routing(logger: KLogger) {
             val sourceId = mangaToFetch.source
             val manga = mangaToFetch.manga
 
-            val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
+            val source = SourceManager.getCatalogueSourceOrNull(sourceId)
             if (source == null) {
                 call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
                 return@get
@@ -194,7 +190,7 @@ fun Application.routing(logger: KLogger) {
             val chapterToFetch = call.receive<SourceChapter>()
             val sourceId = chapterToFetch.source
 
-            val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
+            val source = SourceManager.getCatalogueSourceOrNull(sourceId)
             if (source == null) {
                 call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
                 return@get
@@ -216,7 +212,7 @@ fun Application.routing(logger: KLogger) {
             }
             val sourceId = page.source
 
-            val source = GetCatalogueSource.getCatalogueSourceOrNull(sourceId)
+            val source = SourceManager.getCatalogueSourceOrNull(sourceId)
             if (source == null) {
                 call.response.status(HttpStatusCode(404, "Source with id $sourceId not found"))
                 return@get
