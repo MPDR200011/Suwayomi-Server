@@ -31,10 +31,12 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import kotlinx.coroutines.runBlocking
+import net.odorcave.kubinashi.extensions.Extension
+import net.odorcave.kubinashi.extensions.Extension.downloadAPKFile
+import net.odorcave.kubinashi.extensions.SourceManager
 import net.odorcave.kubinashi.gson.PageAdapter
 import net.odorcave.kubinashi.model.Chapter
 import org.slf4j.event.Level
-import suwayomi.tachidesk.manga.impl.extension.Extension.downloadAPKFile
 import suwayomi.tachidesk.manga.impl.util.PackageTools.dex2jar
 import suwayomi.tachidesk.manga.impl.util.source.GetCatalogueSource
 import suwayomi.tachidesk.server.ApplicationDirs
@@ -72,7 +74,7 @@ fun Application.routing(logger: KLogger) {
             val extensionsToInstall = call.receive<NeededExtensionList>()
 
             extensionsToInstall.forEach {
-                installExtensionApk(it.apk)
+                Extension.installApk(it.apk)
             }
 
             call.respond(HttpStatusCode.OK)
@@ -232,24 +234,6 @@ fun Application.routing(logger: KLogger) {
     }
 }
 
-suspend fun installExtensionApk(apkName: String) {
-    val applicationDirs: ApplicationDirs by injectLazy()
-
-    val apkURL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/apk/$apkName"
-    val apkSavePath = "${applicationDirs.extensionsRoot}/$apkName"
-
-    // download apk file
-    downloadAPKFile(apkURL, apkSavePath)
-
-    val jarName = apkName.substringBefore(".apk") + ".jar"
-    val jarPath = "${applicationDirs.extensionsRoot}/$jarName"
-    val fileNameWithoutType = apkName.substringBefore(".apk")
-
-    dex2jar(apkSavePath, jarPath, fileNameWithoutType)
-
-    GetCatalogueSource.loadCatalogueSourceFromApk(apkName)
-}
-
 fun main() {
     applicationSetup()
     var logger = KotlinLogging.logger {}
@@ -274,7 +258,7 @@ fun main() {
             logger.warn { "Installing $apkName" }
 
             try {
-                installExtensionApk(apkName)
+                Extension.installApk(apkName)
             } catch (e: Exception) {
                 logger.error(e) { "Error installing $apkName" }
             }
