@@ -64,27 +64,6 @@ object GetCatalogueSource {
         return sourceCache[sourceId]!!
     }
 
-    fun loadCatalogueSourceFromApk(apkName: String) {
-        val jarName = apkName.substringBefore(".apk") + ".jar"
-        val jarPath = "${applicationDirs.extensionsRoot}/$jarName"
-
-        val apkSavePath = "${applicationDirs.extensionsRoot}/$apkName"
-        val packageInfo = PackageTools.getPackageInfo(apkSavePath)
-        val className =
-            packageInfo.packageName + packageInfo.applicationInfo.metaData.getString(METADATA_SOURCE_CLASS)
-
-        Extension.extractAssetsFromApk(apkSavePath, jarPath)
-
-        when (val instance = loadExtensionSources(jarPath, className)) {
-            is Source -> listOf(instance)
-            is SourceFactory -> instance.createSources()
-            else -> throw Exception("Unknown source class type! ${instance.javaClass}")
-        }.forEach {
-            logger.warn { "Registering source from $apkName with id ${it.id} (lang=${it.lang})" }
-            sourceCache[it.id] = it as HttpSource
-        }
-    }
-
     fun getCatalogueSourceOrNull(sourceId: Long): CatalogueSource? =
         try {
             getCatalogueSource(sourceId)
