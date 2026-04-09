@@ -1,0 +1,197 @@
+name: Build the container
+
+on:
+  workflow_run:
+    workflows: [CI Build]
+    types:
+      - completed
+
+env:
+  test_image_tag: ghcr.io/mpdr200011/suwayomi-server-test:testing
+  tachidesk_release_type: stable
+  do_upload: true
+  docker_context: ./docker-build/
+
+jobs:
+  build_the_container:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./docker-build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # We want a full clone of the repo so that the rev-list count below is correct
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download built JAR file
+        uses: actions/download-artifact@v7
+        with:
+          name: jar
+          path: ${{ env.docker_context }}/jar
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      # this only builds the amd64 version of the image, which is fine as that's
+      # all that is needed to test the container on GitHub Actions' build servers (which are running amd64 CPUs)
+      - name: Build container image to test
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.docker_context }}
+          load: true # this is important, as this tells build-push-action to save the container to the local docker daemon
+          build-args: |
+            TACHIDESK_RELEASE_JAR_LOCATION=jar/Suwayomi-Server.jar
+          tags: ${{ env.test_image_tag }}
+
+      # Launch the container and then hit the 'about' API to verify that it can start up correctly.
+      - name: Test new container image without passing environment variables
+        env:
+          DO_UPLOAD: ${{ env.do_upload }}
+        run: |
+            mkdir -p ${{ runner.temp }}/tachidesk
+            chmod -R 777 ${{ runner.temp }}/tachidesk
+            docker run -d -p 127.0.0.1:4568:8081 -v ${{ runner.temp }}/tachidesk:/home/suwayomi/.local/share/Tachidesk --name=suwayomi_test ${{ env.test_image_tag }}
+            sleep 15
+            curl -s 127.0.0.1:4568/status && val=$(curl -s 127.0.0.1:4568/status | grep -o "OK" | sort --unique)
+            docker stop suwayomi_test
+            docker logs suwayomi_test > ${{ runner.temp }}/tachidesk.log
+            docker rm suwayomi_test
+            if [[ $val != "OK" ]]; then
+              echo "Container logs:"
+              echo "=============================="
+              cat ${{ runner.temp }}/tachidesk.log
+              echo "=============================="
+              echo "Did not find OK in server response: ${val}"
+              exit 1
+            fi
+
+      - name: Test new container image with passing environment variables
+        env:
+          DO_UPLOAD: ${{ env.do_upload }}
+        run: |
+          mkdir -p ${{ runner.temp }}/tachidesk_env_vars
+          chmod -R 777 ${{ runner.temp }}/tachidesk_env_vars
+          docker run -d -p 127.0.0.1:4568:8081 -v ${{ runner.temp }}/tachidesk_env_vars:/home/suwayomi/.local/share/Tachidesk \
+            -e BIND_IP=0.0.0.0 \
+            -e BIND_PORT=8081 \
+            -e SOCKS_PROXY_ENABLED=false \
+            -e SOCKS_PROXY_VERSION=4 \
+            -e SOCKS_PROXY_HOST=socks_host \
+            -e SOCKS_PROXY_PORT=socks_port \
+            -e SOCKS_PROXY_USERNAME=socks_user \
+            -e SOCKS_PROXY_PASSWORD=socks_pass \
+            -e DOWNLOAD_AS_CBZ=true \
+            -e AUTH_MODE=basic_auth \
+            -e AUTH_USERNAME=manga \
+            -e AUTH_PASSWORD=hello123 \
+            -e JWT_AUDIENCE=suwayomi-server-api2 \
+            -e JWT_TOKEN_EXPIRY=10m \
+            -e JWT_REFRESH_EXPIRY=30d \
+            -e DEBUG=true \
+            -e MAX_LOG_FILES=1000 \
+            -e MAX_LOG_FILE_SIZE=1000mb \
+            -e MAX_LOG_FOLDER_SIZE=1000mb \
+            -e WEB_UI_ENABLED=true \
+            -e WEB_UI_FLAVOR=WebUI \
+            -e WEB_UI_CHANNEL=preview \
+            -e WEB_UI_UPDATE_INTERVAL=2 \
+            -e AUTO_DOWNLOAD_CHAPTERS=true \
+            -e AUTO_DOWNLOAD_EXCLUDE_UNREAD=false \
+            -e AUTO_DOWNLOAD_NEW_CHAPTERS_LIMIT=5 \
+            -e AUTO_DOWNLOAD_IGNORE_REUPLOADS=false \
+            -e DOWNLOAD_CONVERSIONS="{ \"image/filetype\" = { target = \"image/filetype\" }, \"image/filetype\" = { target = \"image/filetype\" } }" \
+            -e SERVE_CONVERSIONS="{ \"image/filetype\" = { target = \"image/filetype\" }, \"image/filetype\" = { target = \"image/filetype\" } }" \
+            -e EXTENSION_REPOS=[\"http://github.com/orginazation-name/repo-name\",\"http://github.com/orginazation-name-2/repo-name-2\"] \
+            -e MAX_SOURCES_IN_PARALLEL=12 \
+            -e UPDATE_EXCLUDE_UNREAD=false \
+            -e UPDATE_EXCLUDE_STARTED=false \
+            -e UPDATE_EXCLUDE_COMPLETED=false \
+            -e UPDATE_INTERVAL=30 \
+            -e UPDATE_MANGA_INFO=true \
+            -e BACKUP_TIME=13:37 \
+            -e BACKUP_INTERVAL=2 \
+            -e BACKUP_TTL=31 \
+            -e AUTO_BACKUP_INCLUDE_MANGA=true \
+            -e AUTO_BACKUP_INCLUDE_CATEGORIES=false \
+            -e AUTO_BACKUP_INCLUDE_CHAPTERS=false \
+            -e AUTO_BACKUP_INCLUDE_TRACKING=false \
+            -e AUTO_BACKUP_INCLUDE_HISTORY=false \
+            -e AUTO_BACKUP_INCLUDE_CLIENT_DATA=false \
+            -e AUTO_BACKUP_INCLUDE_SERVER_SETTINGS=false \
+            -e FLARESOLVERR_ENABLED=true \
+            -e FLARESOLVERR_URL=http://flaresolverr:8191 \
+            -e FLARESOLVERR_TIMEOUT=30 \
+            -e FLARESOLVERR_SESSION_NAME=session-name \
+            -e FLARESOLVERR_SESSION_TTL=120 \
+            -e FLARESOLVERR_RESPONSE_AS_FALLBACK=true \
+            -e OPDS_USE_BINARY_FILE_SIZES=true \
+            -e OPDS_ITEMS_PER_PAGE=51 \
+            -e OPDS_ENABLE_PAGE_READ_PROGRESS=false \
+            -e OPDS_MARK_AS_READ_ON_DOWNLOAD=true \
+            -e OPDS_SHOW_ONLY_UNREAD_CHAPTERS=true \
+            -e OPDS_SHOW_ONLY_DOWNLOADED_CHAPTERS=true \
+            -e OPDS_CHAPTER_SORT_ORDER=ASC \
+            -e OPDS_CBZ_MIME_TYPE=LEGACY \
+            -e KOREADER_SYNC_CHECKSUM_METHOD=filename \
+            -e KOREADER_SYNC_PERCENTAGE_TOLERANCE=0.001 \
+            -e KOREADER_SYNC_STRATEGY_FORWARD=disabled \
+            -e KOREADER_SYNC_STRATEGY_BACKWARD=prompt \
+            -e DATABASE_TYPE=H2 \
+            -e DATABASE_URL=postgresql://localhost:5432/suwayomi \
+            -e DATABASE_USERNAME=manga \
+            -e DATABASE_PASSWORD=hello123 \
+            -e USE_HIKARI_CONNECTION_POOL=false \
+            --name=suwayomi_test \
+            ${{ env.test_image_tag }}
+          sleep 15
+          curl -s http://manga:hello123@127.0.0.1:4568/status && val_env_vars=$(curl -s http://manga:hello123@127.0.0.1:4568/status | grep -o "OK" | sort --unique)
+          docker stop suwayomi_test
+          docker logs suwayomi_test > ${{ runner.temp }}/tachidesk_env_vars.log
+          docker rm suwayomi_test
+          if [[ $val_env_vars != "OK" ]]; then
+            echo "Container logs:"
+            echo "=============================="
+            cat ${{ runner.temp }}/tachidesk_env_vars.log
+            echo "=============================="
+            echo "Did not find OK in server response: ${val_env_vars}"
+            exit 1
+          fi
+
+      # Now we build for all the platforms we support here. NB: the amd64
+      # won't be rebuilt since the local docker daemon has that still cached
+      - name: Push container image to registry
+        if: env.do_upload
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.docker_context }}
+          platforms: linux/amd64,linux/arm64/v8
+          push: true
+          build-args: |
+            TACHIDESK_RELEASE_JAR_LOCATION=jar/Suwayomi-Server.jar
+            TACHIDESK_KCEF=
+            TACHIDESK_KCEF_RELEASE_URL=https://api.github.com/repos/JetBrains/JetBrainsRuntime/releases/latest
+            TACHIDESK_ABORT_HANDLER_DOWNLOAD_URL=https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/master/scripts/resources/catch_abort.c
+          tags: |
+            ${{ env.tachidesk_release_type == 'stable' && 'ghcr.io/mpdr200011/tachidesk:latest' || '' }}
+            ghcr.io/mpdr200011/tachidesk:${{ env.tachidesk_release_type }}
+            ${{ env.tachidesk_release_type == 'stable' && 'ghcr.io/mpdr200011/suwayomi-server:latest' || '' }}
+            ghcr.io/mpdr200011/suwayomi-server:${{ env.tachidesk_release_type }}
+          cache-from: type=registry,ref=ghcr.io/mpdr200011/suwayomi-server:buildcache
+          cache-to: type=registry,ref=ghcr.io/mpdr200011/suwayomi-server:buildcache,mode=max
